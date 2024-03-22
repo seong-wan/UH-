@@ -17,8 +17,11 @@ const Room = (props) => {
   const [isPlaying, setIsPlaying] = useState(false);
   // 인원수 맥스여서 못들어감
   const [showNoEnter, setShowNoEnter] = useState(false);
+  const [roomPassword, setRoomPassword] = useState(null);
+  const [isClicked, setIsClicked] = useState(false);
 
-  // 모달 상태를 로컬 스토리지에서 불러오는 함수
+  const [isHover, setIsHover] = useState(true);
+
   useEffect(() => {
     const showModalState = localStorage.getItem("showModal");
     if (showModalState === "true") {
@@ -31,8 +34,39 @@ const Room = (props) => {
     localStorage.setItem("showModal", showModal.toString());
   }, [showModal]);
 
+  // 인원 가득 찼을 때, 모달 상태를 로컬 스토리지에서 불러오는 함수
+  useEffect(() => {
+    const showNoEnterState = localStorage.getItem("showNoEnter");
+    if (showNoEnterState === "true") {
+      setShowNoEnter(true);
+    }
+  }, []);
+
+  // 모달 상태를 로컬 스토리지에 저장하는 함수
+  useEffect(() => {
+    localStorage.setItem("showNoEnter", showNoEnter.toString());
+  }, [showNoEnter]);
+
+  // 플레이 중일 때, 모달 상태를 로컬 스토리지에서 불러오는 함수
+  useEffect(() => {
+    const isPlayingState = localStorage.getItem("isPlaying");
+    if (isPlayingState === "true") {
+      setIsPlaying(true);
+    }
+  }, []);
+
+  // 모달 상태를 로컬 스토리지에 저장하는 함수
+  useEffect(() => {
+    localStorage.setItem("isPlaying", isPlaying.toString());
+  }, [isPlaying]);
+
+  useEffect(() => {
+    setIsHover(props.numberOfPeople !== props.totalNumberOfPeople);
+  }, [props.numberOfPeople, props.totalNumberOfPeople]);
+
   const handleRoomMax = () => {
     if (props.numberOfPeople === props.totalNumberOfPeople) {
+      setIsHover(false);
       setShowNoEnter(true);
     } else {
       setShowNoEnter(false);
@@ -50,6 +84,7 @@ const Room = (props) => {
       setIsPlaying(true);
     } else {
       handleRoomMax();
+      setIsClicked(true);
     }
   };
 
@@ -58,7 +93,9 @@ const Room = (props) => {
       {props.isPlaying === false ? (
         <div
           onClick={handleClick}
-          className="h-[137px] w-[430px] mr-1 ml-1 mt-3 mb-3 p-3 border rounded-3xl bg-tab10 relative"
+          className={`${
+            isHover ? "hover:animate-jump" : null
+          } h-[137px] w-[430px] mr-1 ml-1 mt-3 mb-3 p-3 border rounded-3xl bg-tab10 relative`}
         >
           <div className="flex flex-wrap justify-start items-center space-x-3 mb-7 mt-1">
             <p className="ml-3">{props.isLocked === null ? <LockOpenIcon /> : <LockIcon />}</p>
@@ -71,11 +108,11 @@ const Room = (props) => {
                 {props.numberOfPeople}/{props.totalNumberOfPeople}
               </p>
             </div>
-            <div className="flex flex-wrap absolute left-8 bottom-4">
-              <p className="mt-2 ml-4">
+            <div className="flex flex-wrap ">
+              <p className="mt-2 ml-4 absolute left-8 bottom-4">
                 {props.gameType === 101 ? "고요 속의 외침" : "인물 맞추기"}
               </p>
-              <p className="text-2xl ml-48">Wait</p>
+              <p className="text-2xl absolute right-7 bottom-4">Wait</p>
             </div>
           </div>
         </div>
@@ -95,11 +132,11 @@ const Room = (props) => {
                 {props.numberOfPeople}/{props.totalNumberOfPeople}
               </p>
             </div>
-            <div className="flex flex-wrap absolute left-8 bottom-4">
-              <p className="mt-2 ml-4">
+            <div className="flex flex-wrap">
+              <p className="mt-2 ml-4 absolute left-8 bottom-4">
                 {props.gameType === 101 ? "고요 속의 외침" : "인물 맞추기"}
               </p>
-              <p className="text-2xl ml-48">Play</p>
+              <p className="text-2xl absolute right-7 bottom-4">Play</p>
             </div>
           </div>
         </div>
