@@ -1,15 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import Chat from "./Chat";
 import "./Game.css";
-
 import { endPlay, getGameData, getRoomInfo } from "../../api/waitRoom";
 import UserVideoComponent from "./Cam/UserVideoComponent";
 
 import G101 from "./games/G101";
 import G102 from "./games/G102";
+import UseIsMusicPlay from "../../store/UseIsMusicPlay";
 
-const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => {
-  let maxTime = 60000;
+const getInitials = (src) => {
+  let string = '';
+  for (var i = 0; i < src.length; i++) {
+    let index = ((src.charCodeAt(i) - 44032) / 28) / 21;
+    if (index >= 0) {
+      string += String.fromCharCode(index + 4352);
+    }
+  }
+  return string;
+}
+
+const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone, itemUse, meme, disable, hint,
+  setMeme, setDisable, setHint, memeAttack, setMemeAttack, disableAttack, setDisableAttack, hintUse, setHintUse }) => {
+  let maxTime = 30000;
   let maxRound = 4;
   const myConnectionId = session.connection.connectionId;
   const [loading, setLoading] = useState(true);
@@ -43,6 +55,27 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
   const [BTeamScore, setBTeamScore] = useState(0);
   const [teamChangeLoading, setTeamChangeLoading] = useState(false);
   const [gameCategory, setGameCategory] = useState(undefined);
+  const [rand01, setRand01] = useState(Math.floor(Math.random() * 2));
+
+  useEffect(() => {
+    if (hintUse) {
+      const extractedInitials = getInitials(quizData[quizIndex].quizAnswer);
+      console.log(quizData[quizIndex].quizAnswer)
+      console.log(extractedInitials)
+    }
+
+    setTimeout(() => {
+      setHintUse(false);
+    }, 5000);
+  }, [hintUse,quizIndex]);
+
+  // 음악 정지
+  const { pause } = UseIsMusicPlay();
+
+  useEffect(() => {
+    pause();
+  }, [pause]);
+
   const plusQuizIndex = () => {
     setQuizIndex(quizIndex + 1);
   };
@@ -84,6 +117,7 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
       setTeamTurn("B");
       setTeamIndex(0);
       setTurnPlayerId(BTeamStreamManagers[TeamIndex]);
+      // changeTeamIndex();
       plusQuizIndex();
 
       if (round < maxRound) {
@@ -96,6 +130,7 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
       setTeamTurn("A");
       setTeamIndex(0);
       setTurnPlayerId(ATeamStreamManagers[TeamIndex]);
+      // changeTeamIndex();
       plusQuizIndex();
 
       if (round < maxRound) {
@@ -110,17 +145,6 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
   useEffect(() => {
     const callData = async () => {
       const roomData = await getRoomInfo(session.sessionId);
-      // console.log(
-      //   "게임 데이터 : ",
-      //   myConnectionId,
-      //   roomData,
-      //   `게임카테고리 : ${roomData.roomData.gameCategory}`,
-      //   publisher,
-      //   subscribers,
-      //   session,
-      //   quiz,
-      //   myUserName
-      // );
       setGameCategory(roomData.roomData.gameCategory);
       const players = roomData.roomStatus.players;
       const myTeamCNT = roomData.roomStatus.players[myConnectionId].team; //A or B
@@ -134,9 +158,6 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
           BTeamMember.push(key);
         }
       }
-      // console.log("A팀맴버", ATeamMember);
-      // console.log("B팀맴버", BTeamMember);
-
       const ATeamStreamManagersCNT = [];
       const BTeamStreamManagersCNT = [];
       if (myTeamCNT === "A") {
@@ -161,7 +182,6 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
       setBTeamStreamManagers(BTeamStreamManagersCNT);
 
       const quiz = await getGameData(session.sessionId);
-      // console.log("quiz data axios result :", quiz);
       if (quiz !== undefined && quiz.length !== 0) {
         setQuizData(quiz);
       }
@@ -179,33 +199,41 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
       endPlay(session.sessionId, "A", ATeamScore, BTeamScore);
     } else if (ATeamScore < BTeamScore) {
       endPlay(session.sessionId, "B", BTeamScore, ATeamScore);
+    } else {
+      if (rand01 > 0) {
+        endPlay(session.sessionId, "A", ATeamScore, BTeamScore);
+      } else {
+        endPlay(session.sessionId, "B", BTeamScore, ATeamScore);
+      }
     }
   };
-  // console.log(quizData);
+
   return (
     <>
       {loading ? (
         <p>loading</p>
       ) : (
-        <main className="container-box bg-stone-100 p-4 border rounded-3xl">
+        <main className="game-container bg-stone-100 p-4 border rounded-3xl">
           <div className="flex flex-row justify-around h-full">
             <section className="grid grid-rows-4 gap-2 mr-2">
               {ATeamStreamManagers.map((sub, i) => (
                 <>
                   {myConnectionId === sub[0] ? (
-                    <div key={sub[0]} className="cam bg-tab10">
+                    <div key={i} className="cam bg-tab10">
                       <UserVideoComponent
                         streamManager={sub[1]}
                         session={session}
                         gamePlayer={turnPlayerId[0]}
+                        gameCategory={gameCategory}
                       />
                     </div>
                   ) : (
-                    <div key={sub[0]} className="cam bg-tab1">
+                    <div key={i} className="cam bg-tab1">
                       <UserVideoComponent
                         streamManager={sub[1]}
                         session={session}
                         gamePlayer={turnPlayerId[0]}
+                        gameCategory={gameCategory}
                       />
                     </div>
                   )}
@@ -213,12 +241,12 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
               ))}
             </section>
             <article className="h-full aspect-[12/10] relative flex flex-col">
-              <div className="w-full flex justify-around items-end bg-tab10 text-xl rounded-t-[17px]">
-                <p className={ATeamScore > BTeamScore ? "text-2xl" : "text-xl"}>A: {ATeamScore}</p>
+              <div className="w-full flex justify-around items-end bg-tab10 rounded-t-[17px]">
+                <p className={ATeamScore > BTeamScore ? "text-2xl" : "text-lg"}>A : {ATeamScore}</p>
                 {/* <p> Team: {TeamTurn}</p> */}
-                <p className="text-3xl">round: {round}</p>
+                <p className="text-3xl">Round {round}</p>
                 {/* <p>{time}</p> */}
-                <p className={ATeamScore < BTeamScore ? "text-2xl" : "text-xl"}> B: {BTeamScore}</p>
+                <p className={ATeamScore < BTeamScore ? "text-2xl" : "text-lg"}>B : {BTeamScore}</p>
               </div>
               <section className="relative rounded-b-[17px] overflow-hidden">
                 {gameCategory === 101 ? (
@@ -249,6 +277,10 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
                     plusScore={plusScore}
                     changeTeamIndex={changeTeamIndex}
                     plusQuizIndex={plusQuizIndex}
+                    rand01={rand01}
+                    memeAttack={memeAttack}
+                    hintUse={hintUse}
+
                   />
                 ) : null}
                 {gameCategory === 102 ? (
@@ -279,6 +311,9 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
                     plusScore={plusScore}
                     changeTeamIndex={changeTeamIndex}
                     plusQuizIndex={plusQuizIndex}
+                    rand01={rand01}
+                    memeAttack={memeAttack}
+                    hintUse={hintUse}
                   />
                 ) : null}
                 {/* <button onClick={sendPlayDone}>playDone</button> */}
@@ -290,6 +325,14 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
                     myConnectionId={myConnectionId}
                     gamePlayer={turnPlayerId[0]}
                     gameCategory={gameCategory}
+                    quizIndex={quizIndex}
+                    myTeam={myTeam}
+                    Team={turnPlayerId[2]}
+                    setQuizIndex={setQuizIndex}
+                    changeTeamIndex={changeTeamIndex}
+                    answer={quizData[quizIndex].quizAnswer}
+                    plusScore={plusScore}
+                    disableAttack={disableAttack}
                   />
                 ) : null}
               </section>
@@ -298,19 +341,21 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
               {BTeamStreamManagers.map((sub, i) => (
                 <>
                   {myConnectionId === sub[0] ? (
-                    <div key={sub[0]} className="cam bg-tab10">
+                    <div key={i} className="cam bg-tab10">
                       <UserVideoComponent
                         streamManager={sub[1]}
                         session={session}
                         gamePlayer={turnPlayerId[0]}
+                        gameCategory={gameCategory}
                       />
                     </div>
                   ) : (
-                    <div key={sub[0]} className="cam bg-tab12">
+                    <div key={i} className="cam bg-tab12">
                       <UserVideoComponent
                         streamManager={sub[1]}
                         session={session}
                         gamePlayer={turnPlayerId[0]}
+                        gameCategory={gameCategory}
                       />
                     </div>
                   )}
@@ -318,6 +363,9 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
               ))}
             </section>
           </div>
+          <button onClick={() => itemUse(myTeam, "meme")}>bombs{meme}</button>
+          <button className="ml-2" onClick={() => itemUse(myTeam, "disable")}>disable{disable}</button>
+          <button className="ml-2" onClick={() => itemUse(myTeam, "hint")}>hint{hint}</button>
         </main>
       )}
     </>
