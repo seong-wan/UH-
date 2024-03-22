@@ -4,11 +4,9 @@ import useStore from "../store/UserAuthStore";
 import { useNavigate } from "react-router-dom";
 import axios from "../api/axios";
 
-
 const WebSocketContext = createContext(null);
 
 export const useWebSocket = () => {
-
   const context = useContext(WebSocketContext);
 
   if (!context) {
@@ -52,13 +50,12 @@ export const WebSocketProvider = ({ children }) => {
           // 로그인 된 유저가 없을 때
           console.error("로그인 필요");
         } else if (event.code === 1002) {
-          alert("이미 접속 중인 세션입니다.")
-          navigate("/")
+          alert("이미 접속 중인 세션입니다.");
+          navigate("/");
         } else if (event.code === 1007) {
           handleLogOut();
-          alert("이미 로그인된 유저입니다.")
-        }
-        else {
+          alert("이미 로그인된 유저입니다.");
+        } else {
           setTimeout(() => {
             con();
           }, 1000);
@@ -68,10 +65,7 @@ export const WebSocketProvider = ({ children }) => {
 
     const handleLogOut = async () => {
       try {
-        const response = await axios.post(
-          "user/logout",
-          { userSeq: userSeq }
-        );
+        const response = await axios.post("user/logout", { userSeq: userSeq });
         const res = response.data;
         // console.log(res);
         // store의 유저 정보 초기화
@@ -116,7 +110,7 @@ export const WebSocketProvider = ({ children }) => {
                 handleInvite(parsedMessage);
                 break;
               case "follow":
-                handleFollow(parsedMessage);
+                handleFollow(parsedMessage.roomId);
                 break;
               default:
                 // 기타 메시지 처리
@@ -135,7 +129,6 @@ export const WebSocketProvider = ({ children }) => {
 
     return () => {
       if (socket.current) {
-
         socket.current.onclose = null;
         socket.current.close();
         // console.log("웹 소캣 연결 종료");
@@ -148,9 +141,13 @@ export const WebSocketProvider = ({ children }) => {
     setNotificationMessage(`You are invited to join room ${message.roomId}`);
   };
 
-  const handleFollow = (message) => {
-    console.log("Follow received", message);
-    // 따라가기 메시지 처리 로직
+  const handleFollow = (roomId) => {
+    if (roomId == null) {
+      alert("입장할 방이 없습니다.")
+    } else {
+      navigate(`/room/${roomId}`);
+      // 따라가기 메시지 처리 로직
+    }
   };
 
   const handleRefresh = () => {
