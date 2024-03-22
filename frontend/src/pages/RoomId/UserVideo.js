@@ -1,12 +1,12 @@
 import React, { useState } from "react";
+import { useNavigate } from 'react-router-dom';
 import OpenViduVideoComponent from "../RoomId/OvVideo";
 import Mic from "@mui/icons-material/Mic";
 import MicOff from "@mui/icons-material/MicOff";
 import VideocamIcon from "@mui/icons-material/Videocam";
 import VideocamOffIcon from "@mui/icons-material/VideocamOff";
 import useStore from "../../store/UserAuthStore";
-import CancelPresentationTwoToneIcon from '@mui/icons-material/CancelPresentationTwoTone';
-import crown from "../../asset/image/crown.png"
+import CancelPresentationTwoToneIcon from "@mui/icons-material/CancelPresentationTwoTone";
 import KickOutModal from "../../components/Modal/waiting/KickOutModal";
 import CloseIcon from "@mui/icons-material/Close";
 import Crown from "../../asset/image/crown.png";
@@ -24,6 +24,8 @@ const UserVideo = ({
   playerReady,
   connectionId,
 }) => {
+  const navigate = useNavigate();
+  
   const [audioActive, setAudioActive] = useState(streamManager.stream.audioActive);
   const [videoActive, setVideoActive] = useState(streamManager.stream.audioActive);
   const getNicknameTag = () => {
@@ -124,50 +126,55 @@ const UserVideo = ({
   };
 
   return (
-    <div className="relative">
+    <div className="">
       {streamManager !== undefined ? (
         <div className="">
           <div className="absolute ml-7 mt-2 flex w-52 justify-between">
-            <p className="flex">
+            <p className="flex ml-6">
               {/* {nickname} */}
               {getNicknameTag()}
-              {hostId===connectionId?<img className="h-4 ml-1" src={Crown}></img>:null}
-              {playerReady?<div className="ml-1">ready</div>:null}
+              {hostId === connectionId ? <img className="h-4 ml-1 mt-1" src={Crown}></img> : null}
+              {/* {playerReady ? <div className="ml-1">ready</div> : null} */}
             </p>
-              {nickname === getNicknameTag() ? (
-                <>
-                  {audioActive === false ? (
-                    <button onClick={onMic}>
-                      <MicOff />
-                    </button>
-                  ) : (
-                    <button onClick={muteMic}>
-                      <Mic />
-                    </button>
-                  )}
-
-                  {videoActive === false ? (
-                    <button onClick={onVideo}>
-                      <VideocamOffIcon />
-                    </button>
-                  ) : (
-                    <button onClick={muteVideo}>
-                      <VideocamIcon />
-                    </button>
-                  )}
-                </>
-              ) : isHost === true ? (
-                  <button
-                    // 강퇴 버튼 클릭 시 모달 창을 띄움
-                    onClick={() => handleKickOutClick(streamManager.stream.connection.connectionId)}
-                    className="bg-red-500 hover:bg-red-700 text-white p-1 rounded flex items-center justify-center w-5 h-5"
-                  >
-                    <CloseIcon fontSize="small" />
-                  </button>
-              ) : null}
+            {nickname === getNicknameTag() ? (
+              <>
+                <div className="absolute right-0 top-20 mt-2 z-30">
+                  <div>
+                    {audioActive === false ? (
+                      <button onClick={onMic}>
+                        <MicOff />
+                      </button>
+                    ) : (
+                      <button onClick={muteMic}>
+                        <Mic />
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    {videoActive === false ? (
+                      <button onClick={onVideo}>
+                        <VideocamOffIcon />
+                      </button>
+                    ) : (
+                      <button onClick={muteVideo}>
+                        <VideocamIcon />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : isHost === true ? (
+              <button
+                // 강퇴 버튼 클릭 시 모달 창을 띄움
+                onClick={() => handleKickOutClick(streamManager.stream.connection.connectionId)}
+                className="bg-red-500 hover:bg-red-700 text-white p-1 rounded flex items-center justify-center w-5 h-5 z-30"
+              >
+                <CloseIcon fontSize="small" />
+              </button>
+            ) : null}
           </div>
-          <div className="pt-9">
-            <OpenViduVideoComponent streamManager={streamManager} />
+          <div className="pt-9 relative">
+            <OpenViduVideoComponent isReady={playerReady} streamManager={streamManager} />
           </div>
         </div>
       ) : null}

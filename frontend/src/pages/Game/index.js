@@ -1,15 +1,40 @@
 import { useEffect, useRef, useState } from "react";
 import Chat from "./Chat";
 import "./Game.css";
-
 import { endPlay, getGameData, getRoomInfo } from "../../api/waitRoom";
 import UserVideoComponent from "./Cam/UserVideoComponent";
+import Tooltip from "@mui/material/Tooltip";
+import Badge from "@mui/material/Badge";
+import chipi from "../../asset/image/chipi.gif";
+import stop from "../../asset/image/stop.gif";
+import talk from "../../asset/image/talk.gif";
+import gethint from "../../asset/image/hint.gif";
 
 import G101 from "./games/G101";
 import G102 from "./games/G102";
+import UseIsMusicPlay from "../../store/UseIsMusicPlay";
+import ScoreTable from "./ScoreTable";
 
-const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => {
-  let maxTime = 60000;
+/**
+ *
+ * @param {string} src 한글
+ * @returns 한글 초성
+ */
+const getInitials = (src) => {
+  let string = "";
+  for (var i = 0; i < src.length; i++) {
+    let index = (src.charCodeAt(i) - 44032) / 28 / 21;
+    if (index >= 0) {
+      string += String.fromCharCode(index + 4352);
+    }
+  }
+  return string;
+};
+
+const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone, itemUse, meme, disable, hint, stt,
+  memeAttack, disableAttack, hintUse, setHintUse, sttUse, setSttUse }) => {
+
+  let maxTime = 30000;
   let maxRound = 4;
   const myConnectionId = session.connection.connectionId;
   const [loading, setLoading] = useState(true);
@@ -23,32 +48,105 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
   const [TeamTurn, setTeamTurn] = useState("A");
   const [TeamIndex, setTeamIndex] = useState(0);
   const [turnPlayerId, setTurnPlayerId] = useState(undefined);
-  const [quizData, setQuizData] = useState([
-    { quizId: 62, quizAnswer: "이덕화" },
-    { quizId: 180, quizAnswer: "최주봉" },
-    { quizId: 12, quizAnswer: "이병헌" },
-    { quizId: 296, quizAnswer: "윤계상" },
-    { quizId: 73, quizAnswer: "정한용" },
-    { quizId: 353, quizAnswer: "최백호" },
-    { quizId: 49, quizAnswer: "정태춘" },
-    { quizId: 12, quizAnswer: "이병헌" },
-    { quizId: 186, quizAnswer: "예지원" },
-    { quizId: 321, quizAnswer: "최덕문" },
-    { quizId: 363, quizAnswer: "김성겸" },
-    { quizId: 107, quizAnswer: "이정길" },
-    { quizId: 82, quizAnswer: "김희선" },
-  ]);
+  const [quizData, setQuizData] = useState([]);
   const [quizIndex, setQuizIndex] = useState(0);
   const [ATeamScore, setATeamScore] = useState(0);
   const [BTeamScore, setBTeamScore] = useState(0);
   const [teamChangeLoading, setTeamChangeLoading] = useState(false);
   const [gameCategory, setGameCategory] = useState(undefined);
+  const [rand01, setRand01] = useState(Math.floor(Math.random() * 2));
+
+  //stt
+  const startRecording = () => {
+    console.log("시작")
+    // 녹음 시작 및 2초 후에 녹음 종료
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        const mediaRecorder = new MediaRecorder(stream);
+        let chunks = [];
+        mediaRecorder.start();
+
+        mediaRecorder.ondataavailable = e => {
+          chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(chunks, { 'type': 'audio/wav' });
+          const formData = new FormData();
+          formData.append('audio', blob);
+
+          fetch('https://i10e201.p.ssafy.io/stt', {
+            method: 'POST',
+            body: formData
+          })
+            .then(response => response.json())
+            .then(data => {
+              console.log(data.results[0].transcript);
+              session
+                .signal({
+                  data: JSON.stringify({
+                    result: data.results[0].transcript
+                  }),
+                  to: [],
+                  type: "stt"
+                })
+                .catch((error) => {
+                  console.error(error);
+                });
+            })
+            .catch(error => {
+              console.error('Error:', error);
+            });
+        };
+
+        setTimeout(() => {
+          console.log("끝")
+          mediaRecorder.stop();
+        }, 2000);
+      })
+      .catch(err => {
+        console.error('Error:', err);
+      });
+  };
+
+  //아이템 사용
+  useEffect(() => {
+    if (hintUse) {
+      const extractedInitials = getInitials(quizData[quizIndex].quizAnswer);
+      console.log(quizData[quizIndex].quizAnswer);
+      console.log(extractedInitials);
+    }
+
+    setTimeout(() => {
+      setHintUse(false);
+    }, 5000);
+  }, [hintUse, quizIndex]);
+
+  useEffect(() => {
+    if (turnPlayerId) {
+      console.log("들어옴")
+      console.log("idcheck" + myConnectionId, turnPlayerId)
+      if (sttUse) {
+        if (myConnectionId == turnPlayerId[0]) {
+          startRecording();
+        }
+      }
+    }
+  }, [sttUse]);
+
+
+  // 음악 정지
+  const { pause } = UseIsMusicPlay();
+
+  useEffect(() => {
+    pause();
+  }, []);
+
   const plusQuizIndex = () => {
     setQuizIndex(quizIndex + 1);
   };
 
   const plusScore = (Team) => {
-    // console.log(`plusScore: ${Team}`);
     if (Team === "A") {
       setATeamScore(ATeamScore + 1);
     } else if (Team === "B") {
@@ -79,48 +177,28 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
   };
 
   const changeTeamTurn = () => {
-    // console.log(TeamTurn);
     if (TeamTurn === "A") {
       setTeamTurn("B");
       setTeamIndex(0);
-      setTurnPlayerId(BTeamStreamManagers[TeamIndex]);
+      setTurnPlayerId(BTeamStreamManagers[0]);
       plusQuizIndex();
-
-      if (round < maxRound) {
-        setTeamChangeLoading(true);
-        setTimeout(() => {
-          setTeamChangeLoading(false);
-        }, 2000);
-      }
     } else if (TeamTurn === "B") {
       setTeamTurn("A");
       setTeamIndex(0);
-      setTurnPlayerId(ATeamStreamManagers[TeamIndex]);
+      setTurnPlayerId(ATeamStreamManagers[0]);
       plusQuizIndex();
-
-      if (round < maxRound) {
-        setTeamChangeLoading(true);
-        setTimeout(() => {
-          setTeamChangeLoading(false);
-        }, 2000);
-      }
+    }
+    if (round < maxRound) {
+      setTeamChangeLoading(true);
+      setTimeout(() => {
+        setTeamChangeLoading(false);
+      }, 2000);
     }
   };
 
   useEffect(() => {
     const callData = async () => {
       const roomData = await getRoomInfo(session.sessionId);
-      // console.log(
-      //   "게임 데이터 : ",
-      //   myConnectionId,
-      //   roomData,
-      //   `게임카테고리 : ${roomData.roomData.gameCategory}`,
-      //   publisher,
-      //   subscribers,
-      //   session,
-      //   quiz,
-      //   myUserName
-      // );
       setGameCategory(roomData.roomData.gameCategory);
       const players = roomData.roomStatus.players;
       const myTeamCNT = roomData.roomStatus.players[myConnectionId].team; //A or B
@@ -134,9 +212,6 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
           BTeamMember.push(key);
         }
       }
-      // console.log("A팀맴버", ATeamMember);
-      // console.log("B팀맴버", BTeamMember);
-
       const ATeamStreamManagersCNT = [];
       const BTeamStreamManagersCNT = [];
       if (myTeamCNT === "A") {
@@ -161,7 +236,6 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
       setBTeamStreamManagers(BTeamStreamManagersCNT);
 
       const quiz = await getGameData(session.sessionId);
-      // console.log("quiz data axios result :", quiz);
       if (quiz !== undefined && quiz.length !== 0) {
         setQuizData(quiz);
       }
@@ -179,33 +253,74 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
       endPlay(session.sessionId, "A", ATeamScore, BTeamScore);
     } else if (ATeamScore < BTeamScore) {
       endPlay(session.sessionId, "B", BTeamScore, ATeamScore);
+    } else {
+      if (rand01 > 0) {
+        endPlay(session.sessionId, "A", ATeamScore, BTeamScore);
+      } else {
+        endPlay(session.sessionId, "B", BTeamScore, ATeamScore);
+      }
     }
   };
-  // console.log(quizData);
+  useEffect(() => {
+    // 키보드 입력에 반응하여 특정 액션 실행
+    const handleKeyPress = (event) => {
+      switch (event.key) {
+        case ",": // 화면 가리기
+          itemUse(myTeam, "meme");
+          break;
+        case ".": // 채팅 막기
+          itemUse(myTeam, "disable");
+          break;
+        case "/":
+          if (gameCategory === 102) {
+            // gameCategory가 102일 때 hint
+            itemUse(myTeam, "hint");
+          } else if (gameCategory === 101) {
+            // gameCategory가 101일 때 talk
+            if (myTeam == TeamTurn)
+              itemUse(myTeam, "stt")
+            else
+              alert("우리 팀의 차례에만 사용 가능합니다.")
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyPress);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyPress);
+    };
+  }, [myTeam, itemUse]);
+
   return (
     <>
       {loading ? (
         <p>loading</p>
       ) : (
-        <main className="container-box bg-stone-100 p-4 border rounded-3xl">
+        <main className="game-container bg-stone-100 p-4 border rounded-3xl">
           <div className="flex flex-row justify-around h-full">
             <section className="grid grid-rows-4 gap-2 mr-2">
               {ATeamStreamManagers.map((sub, i) => (
                 <>
                   {myConnectionId === sub[0] ? (
-                    <div key={sub[0]} className="cam bg-tab10">
+                    <div key={i} className="cam bg-tab10">
                       <UserVideoComponent
                         streamManager={sub[1]}
                         session={session}
                         gamePlayer={turnPlayerId[0]}
+                        gameCategory={gameCategory}
                       />
                     </div>
                   ) : (
-                    <div key={sub[0]} className="cam bg-tab1">
+                    <div key={i} className="cam bg-tab1">
                       <UserVideoComponent
                         streamManager={sub[1]}
                         session={session}
                         gamePlayer={turnPlayerId[0]}
+                        gameCategory={gameCategory}
                       />
                     </div>
                   )}
@@ -213,13 +328,12 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
               ))}
             </section>
             <article className="h-full aspect-[12/10] relative flex flex-col">
-              <div className="w-full flex justify-around items-end bg-tab10 text-xl rounded-t-[17px]">
-                <p className={ATeamScore > BTeamScore ? "text-2xl" : "text-xl"}>A: {ATeamScore}</p>
-                {/* <p> Team: {TeamTurn}</p> */}
-                <p className="text-3xl">round: {round}</p>
-                {/* <p>{time}</p> */}
-                <p className={ATeamScore < BTeamScore ? "text-2xl" : "text-xl"}> B: {BTeamScore}</p>
-              </div>
+              <ScoreTable
+                ATeamScore={ATeamScore}
+                BTeamScore={BTeamScore}
+                round={round}
+                gameCategory={gameCategory}
+              />
               <section className="relative rounded-b-[17px] overflow-hidden">
                 {gameCategory === 101 ? (
                   <G101
@@ -249,6 +363,9 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
                     plusScore={plusScore}
                     changeTeamIndex={changeTeamIndex}
                     plusQuizIndex={plusQuizIndex}
+                    rand01={rand01}
+                    memeAttack={memeAttack}
+                    hintUse={hintUse}
                   />
                 ) : null}
                 {gameCategory === 102 ? (
@@ -279,6 +396,9 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
                     plusScore={plusScore}
                     changeTeamIndex={changeTeamIndex}
                     plusQuizIndex={plusQuizIndex}
+                    rand01={rand01}
+                    memeAttack={memeAttack}
+                    hintUse={hintUse}
                   />
                 ) : null}
                 {/* <button onClick={sendPlayDone}>playDone</button> */}
@@ -290,6 +410,14 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
                     myConnectionId={myConnectionId}
                     gamePlayer={turnPlayerId[0]}
                     gameCategory={gameCategory}
+                    quizIndex={quizIndex}
+                    myTeam={myTeam}
+                    Team={turnPlayerId[2]}
+                    setQuizIndex={setQuizIndex}
+                    changeTeamIndex={changeTeamIndex}
+                    answer={quizData[quizIndex].quizAnswer}
+                    plusScore={plusScore}
+                    disableAttack={disableAttack}
                   />
                 ) : null}
               </section>
@@ -298,19 +426,21 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
               {BTeamStreamManagers.map((sub, i) => (
                 <>
                   {myConnectionId === sub[0] ? (
-                    <div key={sub[0]} className="cam bg-tab10">
+                    <div key={i} className="cam bg-tab10">
                       <UserVideoComponent
                         streamManager={sub[1]}
                         session={session}
                         gamePlayer={turnPlayerId[0]}
+                        gameCategory={gameCategory}
                       />
                     </div>
                   ) : (
-                    <div key={sub[0]} className="cam bg-tab12">
+                    <div key={i} className="cam bg-tab12">
                       <UserVideoComponent
                         streamManager={sub[1]}
                         session={session}
                         gamePlayer={turnPlayerId[0]}
+                        gameCategory={gameCategory}
                       />
                     </div>
                   )}
@@ -318,7 +448,121 @@ const Game = ({ publisher, subscribers, session, myUserName, sendPlayDone }) => 
               ))}
             </section>
           </div>
-        </main>
+
+          <div className="bg-white p-1 rounded-3xl border-2 border-slate-500 inline-block mt-[-15px] flex justify-center mx-auto max-w-60">
+            <div className="text-center">
+              <h1 className="text-2xl mt-1 mb-2">아이템</h1>
+              <Tooltip title="화면 가리기" arrow>
+                <Badge
+                  badgeContent={
+                    <span style={{ fontSize: "3em" }} className="mb-5">
+                      ,
+                    </span>
+                  }
+                  color="primary"
+                  overlap="circular"
+                  sx={{
+                    "& .MuiBadge-badge": {
+                      height: "30px", // 뱃지 높이 조정
+                      minWidth: "30px", // 뱃지 최소 너비 조정
+                    },
+                  }}
+                >
+                  <button
+                    onClick={() => itemUse(myTeam, "meme")}
+                    className={`rounded-full w-16 h-16 m-1 ${meme === 0 ? "grayscale" : ""}`}
+                    disabled={meme === 0} // 선택적으로 버튼을 비활성화
+                  >
+                    <img src={chipi} alt="chipi" className="rounded-full w-16 h-16" />
+                  </button>
+                </Badge>
+              </Tooltip>
+              <Tooltip title="채팅 막기" arrow>
+                <Badge
+                  badgeContent={
+                    <span style={{ fontSize: "3em" }} className="mb-5">
+                      .
+                    </span>
+                  }
+                  color="primary"
+                  overlap="circular"
+                  sx={{
+                    "& .MuiBadge-badge": {
+                      height: "30px", // 뱃지 높이 조정
+                      minWidth: "30px", // 뱃지 최소 너비 조정
+                    },
+                  }}
+                >
+                  <button
+                    onClick={() => itemUse(myTeam, "disable")}
+                    className={`rounded-full w-16 h-16 ${disable === 0 ? "grayscale" : ""}`}
+                    disabled={disable === 0} // 선택적으로 버튼을 비활성화
+                  >
+                    <img src={stop} alt="stop" className="rounded-full w-16 h-16" />
+                  </button>
+                </Badge>
+              </Tooltip>
+              {gameCategory === 102 ?
+                <Tooltip title="초성 힌트" arrow>
+                  <Badge
+                    badgeContent={
+                      <span style={{ fontSize: "2em" }} className="mt-1">
+                        /
+                      </span>
+                    }
+                    color="primary"
+                    overlap="circular"
+                    sx={{
+                      "& .MuiBadge-badge": {
+                        height: "30px", // 뱃지 높이 조정
+                        minWidth: "30px", // 뱃지 최소 너비 조정
+                      },
+                    }}
+                  >
+                    <button
+                      onClick={() => itemUse(myTeam, "hint")}
+                      className={`rounded-full w-16 h-16 ${hint === 0 ? "grayscale" : ""}`}
+                      disabled={hint === 0} // 선택적으로 버튼을 비활성화
+                    >
+                      <img src={gethint} alt="hint" className="rounded-full w-16 h-16" />
+                    </button>
+                  </Badge>
+                </Tooltip> :
+
+                //stt
+                <Tooltip title="stt" arrow>
+                  <Badge
+                    badgeContent={
+                      <span style={{ fontSize: "2em" }} className="mt-1">
+                        /
+                      </span>
+                    }
+                    color="primary"
+                    overlap="circular"
+                    sx={{
+                      "& .MuiBadge-badge": {
+                        height: "30px", // 뱃지 높이 조정
+                        minWidth: "30px", // 뱃지 최소 너비 조정
+                      },
+                    }}
+                  >
+                    <button
+                      onClick={() => {
+                        if (myTeam == TeamTurn)
+                          itemUse(myTeam, "stt")
+                        else
+                          alert("우리 팀의 차례에만 사용 가능합니다.")
+                      }}
+                      className={`rounded-full w-16 h-16 ${stt === 0 ? "grayscale" : ""}`}
+                      disabled={stt === 0} // 선택적으로 버튼을 비활성화
+                    >
+                      <img src={talk} alt="talk" className="rounded-full w-16 h-16" />
+                    </button>
+                  </Badge>
+                </Tooltip>}
+            </div>
+          </div>
+        </main >
       )}
     </>
   );
